@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,22 +20,28 @@ const (
 	// TODO: replace with appropriate node URL
 	NODE_URL = "http://127.0.0.1:26657"
 	// TODO: replace with appropriate mnemonic
-	mnemonic   = "..."
 	BATCH_SIZE = 50
 )
 
 func main() {
+	mnemonic, _ := os.ReadFile("seedphrase")
+
 	startBlock := currentBlock()
 	fmt.Printf("Script starting at block height: %s\n", startBlock)
 
+	dir, err := os.MkdirTemp("/tmp", "wallet")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Create a new keyring for managing keys.
-	kr, err := keyring.New("my-keyring", keyring.BackendTest, "", nil) // replace "" with your desired keyring directory
+	kr, err := keyring.New("my-keyring", keyring.BackendTest, dir, nil) // replace "" with your desired keyring directory
 	if err != nil {
 		log.Fatalf("Failed to create keyring: %v", err)
 	}
 
 	// Derive a new account from the mnemonic.
-	info, err := kr.NewAccount("my-account", mnemonic, "", hd.CreateHDPath(118, 0, 0).String(), hd.Secp256k1)
+	info, err := kr.NewAccount("my-account", string(mnemonic), "", hd.CreateHDPath(118, 0, 0).String(), hd.Secp256k1)
 	if err != nil {
 		log.Fatalf("Failed to create account: %v", err)
 	}
@@ -50,7 +57,7 @@ func main() {
 
 		fmt.Printf("Last block height: %s, size: %d transactions\n", lastBlock, len(lastBlockSize))
 		fmt.Printf("Current mempool size: %s transactions\n", currentMempoolSize)
-		
+
 		// Convert sequence string to uint64
 		seqNum, err := strconv.ParseUint(sequence, 10, 64)
 		if err != nil {
@@ -129,14 +136,14 @@ func blockSize(height string) []string {
 }
 
 func getInitialSequence(address string) string {
-	theUrl := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", NODE_URL, address)
-	resp, err := httpGet(theUrl)
+	resp, err := httpGet("http://localhost:1317/cosmos/auth/v1beta1/accounts" + address)
 	if err != nil {
 		log.Fatalf("Failed to get initial sequence: %v", err)
 	}
 	var accountRes AccountResult
 	json.Unmarshal(resp, &accountRes)
-	return accountRes.Account.Sequence
+	fmt.Println(accountRes.Account.Sequence)
+	return "69"
 }
 
 func httpGet(url string) ([]byte, error) {
