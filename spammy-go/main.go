@@ -10,10 +10,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/cosmos/cosmos-sdk/crypto/hd"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 )
 
 const (
-	NODE_URL   = "http://127.0.0.1:26657"
+	// TODO: replace with appropriate node URL
+	NODE_URL = "http://127.0.0.1:26657"
+	// TODO: replace with appropriate mnemonic
+	mnemonic   = "..."
 	BATCH_SIZE = 50
 )
 
@@ -21,7 +27,21 @@ func main() {
 	startBlock := currentBlock()
 	fmt.Printf("Script starting at block height: %s\n", startBlock)
 
-	sequence := getInitialSequence()
+	// Create a new keyring for managing keys.
+	kr, err := keyring.New("my-keyring", keyring.BackendTest, "", nil) // replace "" with your desired keyring directory
+	if err != nil {
+		log.Fatalf("Failed to create keyring: %v", err)
+	}
+
+	// Derive a new account from the mnemonic.
+	info, err := kr.NewAccount("my-account", mnemonic, "", hd.CreateHDPath(118, 0, 0).String(), hd.Secp256k1)
+	if err != nil {
+		log.Fatalf("Failed to create account: %v", err)
+	}
+
+	address := info.GetAddress().String()
+
+	sequence := getInitialSequence(address)
 
 	for {
 		lastBlock := currentBlock()
@@ -32,7 +52,18 @@ func main() {
 		fmt.Printf("Current mempool size: %s transactions\n", currentMempoolSize)
 
 		for i := 0; i < BATCH_SIZE; i++ {
-			err = sendIBCTransferViaRPC("test")
+
+			// Convert sequence string to uint64
+			seqNum, err := strconv.ParseUint(sequence, 10, 64)
+			if err != nil {
+				log.Fatalf("Failed to convert sequence to uint64: %v", err)
+			}
+
+			// Call sendIBCTransferViaRPC with appropriate arguments
+			broadcastLog, err := sendIBCTransferViaRPC("test", NODE_URL, seqNum, kr) // Assuming "test" is your senderKeyName
+			if err != nil {
+				log.Fatalf("Failed to broadcast transaction: %v", err)
+			}
 
 			fmt.Println(string(sequence))
 
@@ -97,8 +128,9 @@ func blockSize(height string) []string {
 	return blockRes.Result.Block.Data.Txs
 }
 
-func getInitialSequence() string {
-	resp, err := httpGet("http://127.0.0.1:1317/cosmos/auth/v1beta1/accounts/ADDRESS")
+func getInitialSequence(address string) string {
+	theUrl := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", NODE_URL, address)
+	resp, err := httpGet(theUrl)
 	if err != nil {
 		log.Fatalf("Failed to get initial sequence: %v", err)
 	}

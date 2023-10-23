@@ -13,21 +13,15 @@ import (
 	"github.com/cosmos/cosmos-sdk/simapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
-	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 	"github.com/cosmos/ibc-go/v4/modules/apps/transfer/types"
 	clienttypes "github.com/cosmos/ibc-go/v4/modules/core/02-client/types"
 )
 
-func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64) (broadcastlog string, err error) {
+func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64, kr keyring.Keyring) (broadcastlog string, err error) {
 	encodingConfig := simapp.MakeTestEncodingConfig()
 
 	// Create a new TxBuilder.
 	txBuilder := encodingConfig.TxConfig.NewTxBuilder()
-
-	kr, err := keyring.New("cosmos", keyring.BackendTest, "/root/.gaia-rs", nil) // adjust paths/backend as necessary
-	if err != nil {
-		return "", err
-	}
 
 	info, err := kr.Key(senderKeyName)
 	if err != nil {
@@ -35,23 +29,20 @@ func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64) (
 	}
 
 	address := info.GetAddress()
-	reciever, err := generateRandomString(30)
+	receiver, err := generateRandomString(30)
+	if err != nil {
+		return "", err
+	}
 	token := sdk.NewCoin("uatom", sdk.NewInt(1))
 	msg := types.NewMsgTransfer(
 		"transfer",
 		"channel-51",
 		token,
 		address.String(),
-		reciever,
+		receiver,
 		clienttypes.NewHeight(0, 10000),
 		types.DefaultRelativePacketTimeoutTimestamp,
 	)
-
-	signerData := authsigning.SignerData{
-		ChainID:       "provider",
-		AccountNumber: 490,      // set actual account number
-		Sequence:      sequence, // set actual sequence number
-	}
 
 	err = txBuilder.SetMsgs(msg)
 	if err != nil {
@@ -67,7 +58,7 @@ func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64) (
 			SignMode:  encodingConfig.TxConfig.SignModeHandler().DefaultMode(),
 			Signature: nil,
 		},
-		Sequence: 69,
+		Sequence: sequence,
 	}
 
 	sigsV2 = append(sigsV2, sigV2)
@@ -78,9 +69,30 @@ func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64) (
 
 	// Second round: all signer infos are set, so each signer can sign.
 	sigsV2 = []signing.SignatureV2{}
-	signed, pubkey, err := kr.Sign("test", msg.GetSignBytes())
+
+	// Now, marshal the signDoc to bytes so it can be signed.
+	signBytes, err := encodingConfig.TxConfig.TxEncoder()(txBuilder.GetTx())
 	if err != nil {
 		return "", err
+	}
+
+	// Now, sign the signBytes.
+	signed, _, err := kr.Sign(info.GetName(), signBytes)
+	if err != nil {
+		return "", err
+	}
+
+	// If you need to use the pubkey, you can retrieve it from the info struct.
+	pubkey := info.GetPubKey()
+
+	// Now, create a new SignatureV2 struct with the signed bytes and public key.
+	sigV2 = signing.SignatureV2{
+		PubKey: pubkey,
+		Data: &signing.SingleSignatureData{
+			SignMode:  encodingConfig.TxConfig.SignModeHandler().DefaultMode(),
+			Signature: signed,
+		},
+		Sequence: sequence, // Adjust the sequence number as necessary.
 	}
 
 	fee := sdk.NewCoin("uatom", sdk.NewInt(5000))
@@ -91,6 +103,12 @@ func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64) (
 	txBuilder.SetMemo("testing 1 2 3")
 
 	err = txBuilder.SetSignatures(sigV2)
+	if err != nil {
+		return "", err
+	}
+
+	// Encode the signed transaction to broadcast it
+	bz, err := encodingConfig.TxConfig.TxEncoder()(txBuilder.GetTx())
 	if err != nil {
 		return "", err
 	}
