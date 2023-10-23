@@ -17,13 +17,13 @@ import (
 	clienttypes "github.com/cosmos/ibc-go/v4/modules/core/02-client/types"
 )
 
-func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64, kr keyring.Keyring) (broadcastlog string, err error) {
+func sendIBCTransferViaRPC(senderKeyName sdk.Address, rpcEndpoint string, sequence uint64, kr keyring.Keyring) (broadcastlog string, err error) {
 	encodingConfig := simapp.MakeTestEncodingConfig()
 
 	// Create a new TxBuilder.
 	txBuilder := encodingConfig.TxConfig.NewTxBuilder()
 
-	info, err := kr.Key(senderKeyName)
+	info, err := kr.KeyByAddress(senderKeyName)
 	if err != nil {
 		return "", err
 	}
@@ -82,10 +82,10 @@ func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64, k
 		return "", err
 	}
 
-	// If you need to use the pubkey, you can retrieve it from the info struct.
+	// retrive the pubkey
 	pubkey := info.GetPubKey()
 
-	// Now, create a new SignatureV2 struct with the signed bytes and public key.
+	//create a new SignatureV2 struct with the signed bytes and public key.
 	sigV2 = signing.SignatureV2{
 		PubKey: pubkey,
 		Data: &signing.SingleSignatureData{
@@ -121,6 +121,7 @@ func sendIBCTransferViaRPC(senderKeyName, rpcEndpoint string, sequence uint64, k
 		return "", err
 	}
 
+	// TODO: is this endpoint correct ?
 	resp, err := http.Post(rpcEndpoint+"/broadcast_tx_sync", "application/json", bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return "", err

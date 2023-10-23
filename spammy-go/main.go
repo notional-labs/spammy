@@ -50,17 +50,17 @@ func main() {
 
 		fmt.Printf("Last block height: %s, size: %d transactions\n", lastBlock, len(lastBlockSize))
 		fmt.Printf("Current mempool size: %s transactions\n", currentMempoolSize)
+		
+		// Convert sequence string to uint64
+		seqNum, err := strconv.ParseUint(sequence, 10, 64)
+		if err != nil {
+			log.Fatalf("Failed to convert sequence to uint64: %v", err)
+		}
 
 		for i := 0; i < BATCH_SIZE; i++ {
 
-			// Convert sequence string to uint64
-			seqNum, err := strconv.ParseUint(sequence, 10, 64)
-			if err != nil {
-				log.Fatalf("Failed to convert sequence to uint64: %v", err)
-			}
-
 			// Call sendIBCTransferViaRPC with appropriate arguments
-			broadcastLog, err := sendIBCTransferViaRPC("test", NODE_URL, seqNum, kr) // Assuming "test" is your senderKeyName
+			broadcastLog, err := sendIBCTransferViaRPC(info.GetAddress(), NODE_URL, seqNum, kr) // Assuming "test" is your senderKeyName
 			if err != nil {
 				log.Fatalf("Failed to broadcast transaction: %v", err)
 			}
