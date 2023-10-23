@@ -147,7 +147,7 @@ func getInitialSequence(address string) string {
 }
 
 func httpGet(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // not worth fixing
 	if err != nil {
 		return nil, err
 	}

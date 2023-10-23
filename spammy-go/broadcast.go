@@ -46,8 +46,10 @@ func sendIBCTransferViaRPC(senderKeyName sdk.Address, rpcEndpoint string, sequen
 
 	err = txBuilder.SetMsgs(msg)
 	if err != nil {
-		return "", err
+		panic(err)
+		//	return "", err
 	}
+	fmt.Println("messages set")
 
 	// First round: we gather all the signer infos. We use the "set empty
 	// signature" hack to do that.
@@ -60,15 +62,15 @@ func sendIBCTransferViaRPC(senderKeyName sdk.Address, rpcEndpoint string, sequen
 		},
 		Sequence: sequence,
 	}
+	fmt.Println("sigsv2 assigned")
 
 	sigsV2 = append(sigsV2, sigV2)
 	err = txBuilder.SetSignatures(sigsV2...)
 	if err != nil {
-		return "", err
+		panic(err)
+		// return "", err
 	}
-
-	// Second round: all signer infos are set, so each signer can sign.
-	sigsV2 = []signing.SignatureV2{}
+	fmt.Println("Sigsv2 in variadic style")
 
 	// Now, marshal the signDoc to bytes so it can be signed.
 	signBytes, err := encodingConfig.TxConfig.TxEncoder()(txBuilder.GetTx())
@@ -79,13 +81,15 @@ func sendIBCTransferViaRPC(senderKeyName sdk.Address, rpcEndpoint string, sequen
 	// Now, sign the signBytes.
 	signed, _, err := kr.Sign(info.GetName(), signBytes)
 	if err != nil {
-		return "", err
+		panic(err)
+		// return "", err
 	}
+	fmt.Println(signed)
 
-	// retrive the pubkey
+	// retrieve the pubkey
 	pubkey := info.GetPubKey()
 
-	//create a new SignatureV2 struct with the signed bytes and public key.
+	// create a new SignatureV2 struct with the signed bytes and public key.
 	sigV2 = signing.SignatureV2{
 		PubKey: pubkey,
 		Data: &signing.SingleSignatureData{
@@ -104,13 +108,15 @@ func sendIBCTransferViaRPC(senderKeyName sdk.Address, rpcEndpoint string, sequen
 
 	err = txBuilder.SetSignatures(sigV2)
 	if err != nil {
-		return "", err
+		panic(err)
+		//	return "", err
 	}
 
 	// Encode the signed transaction to broadcast it
 	bz, err := encodingConfig.TxConfig.TxEncoder()(txBuilder.GetTx())
 	if err != nil {
-		return "", err
+		panic(err)
+		//return "", err
 	}
 
 	broadcastReq := map[string]interface{}{
