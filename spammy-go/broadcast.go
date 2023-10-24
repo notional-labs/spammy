@@ -129,7 +129,7 @@ func sendIBCTransferViaRPC(rpcEndpoint string, sequence, accnum uint64, privKey 
 	}
 
 	// Generate a JSON string.
-	txJSONBytes, err := encodingConfig.TxConfig.TxJSONEncoder()(txBuilder.GetTx())
+	txJSONBytes, err := encodingConfig.TxConfig.TxEncoder()(txBuilder.GetTx())
 	if err != nil {
 		fmt.Println("some issue with the string")
 		fmt.Println(err)
