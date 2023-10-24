@@ -5,6 +5,7 @@ go 1.21.3
 replace github.com/tendermint/tendermint => github.com/cometbft/cometbft v0.34.29
 
 require (
+	github.com/BurntSushi/toml v1.2.1
 	github.com/cosmos/cosmos-sdk v0.45.16
 	github.com/cosmos/ibc-go/v4 v4.4.2
 

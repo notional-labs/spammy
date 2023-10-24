@@ -25,5 +25,8 @@ go.work.sum
 *node_modules
 *package-lock.json
 
+# seed phrase
+spammy-go/seedphrase
+
 # test db files
 *txDataTable.json

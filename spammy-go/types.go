@@ -1,30 +1,67 @@
 package main
 
+type Header struct {
+	Height string `json:"height"`
+}
+
+type Data struct {
+	Txs []string `json:"txs"`
+}
+
+type Block struct {
+	Header Header `json:"header"`
+	Data   Data   `json:"data"`
+}
+
+type ResultBlock struct {
+	Block Block `json:"block"`
+}
+
 type BlockResult struct {
-	Result struct {
-		Block struct {
-			Header struct {
-				Height string `json:"height"`
-			} `json:"header"`
-			Data struct {
-				Txs []string `json:"txs"`
-			} `json:"data"`
-		} `json:"block"`
-	} `json:"result"`
+	Result ResultBlock `json:"result"`
 }
 
 type MempoolResult struct {
-	Result struct {
-		NTxs string `json:"n_txs"`
-	} `json:"result"`
+	Result Result `json:"result"`
+}
+
+type BroadcastRequest struct {
+	Jsonrpc                string `json:"jsonrpc"`
+	ID                     string `json:"id"`
+	Method                 string `json:"method"`
+	BroadcastRequestParams `json:"params"`
+}
+
+type BroadcastRequestParams struct {
+	Tx string `json:"tx"`
+}
+
+type BroadcastResponse struct {
+	Jsonrpc         string `json:"jsonrpc"`
+	ID              string `json:"id"`
+	BroadcastResult `json:"result"`
+}
+
+type BroadcastResult struct {
+	Code      int    `json:"code"`
+	Data      string `json:"data"`
+	Log       string `json:"log"`
+	Codespace string `json:"codespace"`
+	Hash      string `json:"hash"`
+}
+
+type Result struct {
+	NTxs       string `json:"n_txs"`
+	TotalBytes string `json:"total_bytes"`
+}
+
+type Account struct {
+	Sequence string `json:"sequence"`
 }
 
 type AccountResult struct {
-	Account struct {
-		Sequence string `json:"sequence"`
-	} `json:"account"`
+	Account Account `json:"account"`
 }
-
 type Transaction struct {
 	Body       Body     `json:"body"`
 	AuthInfo   AuthInfo `json:"auth_info"`
@@ -71,4 +108,8 @@ type Fee struct {
 	GasLimit string  `json:"gas_limit"`
 	Payer    string  `json:"payer"`
 	Granter  string  `json:"granter"`
+}
+
+type Config struct {
+	SuccessfulNodes []string `toml:"successfulNodes"`
 }

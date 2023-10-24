@@ -1,160 +1,116 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"os"
 	"regexp"
 	"strconv"
-	"strings"
-	"time"
-
-	"github.com/cosmos/cosmos-sdk/crypto/hd"
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	"sync"
 )
 
 const (
-	// TODO: replace with appropriate node URL
-	NODE_URL = "http://127.0.0.1:26657"
-	// TODO: replace with appropriate mnemonic
-	BATCH_SIZE = 50
+	BatchSize  = 100
+	MaxWorkers = 1000
 )
 
 func main() {
-	mnemonic, _ := os.ReadFile("seedphrase")
+	var successfulTxns int
+	var failedTxns int
+	var mu sync.Mutex
 
-	startBlock := currentBlock()
-	fmt.Printf("Script starting at block height: %s\n", startBlock)
+	// Declare a map to hold response codes and their counts
+	responseCodes := make(map[int]int)
 
-	dir, err := os.MkdirTemp("/tmp", "wallet")
-	if err != nil {
-		log.Fatal(err)
-	}
+	successfulNodes := loadNodes()
+	fmt.Printf("Number of nodes: %d\n", len(successfulNodes))
 
-	// Create a new keyring for managing keys.
-	kr, err := keyring.New("my-keyring", keyring.BackendTest, dir, nil) // replace "" with your desired keyring directory
-	if err != nil {
-		log.Fatalf("Failed to create keyring: %v", err)
-	}
+	var wg sync.WaitGroup
 
-	// Derive a new account from the mnemonic.
-	info, err := kr.NewAccount("my-account", string(mnemonic), "", hd.CreateHDPath(118, 0, 0).String(), hd.Secp256k1)
-	if err != nil {
-		log.Fatalf("Failed to create account: %v", err)
-	}
+	// Compile the regex outside the loop
+	reMismatch := regexp.MustCompile("account sequence mismatch")
+	reExpected := regexp.MustCompile(`expected (\d+)`)
 
-	address := info.GetAddress().String()
+	for _, nodeURL := range successfulNodes {
+		wg.Add(1)
+		go func(nodeURL string) {
+			defer wg.Done()
 
-	sequence := getInitialSequence(address)
+			currentMempoolSize := mempoolSize(nodeURL)
+			fmt.Printf("Node: %s, Mempool size: %s bytes, Number of transactions: %s\n", nodeURL, currentMempoolSize.TotalBytes, currentMempoolSize.NTxs)
 
-	for {
-		lastBlock := currentBlock()
-		lastBlockSize := blockSize(lastBlock)
-		currentMempoolSize := mempoolSize()
+			startBlock := currentBlock(nodeURL)
+			fmt.Printf("Script starting at block height: %s\n", startBlock)
 
-		fmt.Printf("Last block height: %s, size: %d transactions\n", lastBlock, len(lastBlockSize))
-		fmt.Printf("Current mempool size: %s transactions\n", currentMempoolSize)
+			sequence := getInitialSequence()
+			for {
+				lastBlock := startBlock
+				lastBlockSize := blockSize(lastBlock, nodeURL)
+				currentMempoolSize := mempoolSize(nodeURL)
 
-		// Convert sequence string to uint64
-		seqNum, err := strconv.ParseUint(sequence, 10, 64)
-		if err != nil {
-			log.Fatalf("Failed to convert sequence to uint64: %v", err)
-		}
+				fmt.Println("Last block height: ", lastBlock)
+				fmt.Println("Last Block Size: ", lastBlockSize)
+				fmt.Println(nodeURL, "Current mempool txns: %s transactions\n", currentMempoolSize.NTxs)
+				fmt.Println(nodeURL, "mempool byte size:", currentMempoolSize.TotalBytes)
 
-		for i := 0; i < BATCH_SIZE; i++ {
+				var wgBatch sync.WaitGroup
+				wgBatch.Add(BatchSize)
 
-			// Call sendIBCTransferViaRPC with appropriate arguments
-			broadcastLog, err := sendIBCTransferViaRPC(info.GetAddress(), NODE_URL, seqNum, kr) // Assuming "test" is your senderKeyName
-			if err != nil {
-				log.Fatalf("Failed to broadcast transaction: %v", err)
-			}
+				for i := 0; i < BatchSize; i++ {
+					go func() {
+						defer wgBatch.Done()
 
-			fmt.Println(string(sequence))
+						resp, _, err := sendIBCTransferViaRPC("test", nodeURL, uint64(sequence))
+						if err != nil {
+							mu.Lock()
+							failedTxns++
+							mu.Unlock()
+						} else {
+							mu.Lock()
+							successfulTxns++
+							mu.Unlock()
+							if resp != nil {
+								// Increment the count for this response code
+								mu.Lock()
+								responseCodes[resp.BroadcastResult.Code]++
+								mu.Unlock()
+							}
 
-			if strings.Contains(string(broadcastLog), "code: 20") {
-				fmt.Println("\033[31mMEMPOOL FULL!!!!!!!!!\033[0m")
-				time.Sleep(60 * time.Second)
-				break
-			}
-
-			match, _ := regexp.MatchString("account sequence mismatch", string(broadcastLog))
-			if match {
-				re := regexp.MustCompile(`expected (\d+)`)
-				matches := re.FindStringSubmatch(string(broadcastLog))
-				if len(matches) > 1 {
-					sequence = matches[1]
-					fmt.Printf("we had an account sequence mismatch, adjusting to %s\n", sequence)
+							match := reMismatch.MatchString(resp.BroadcastResult.Log)
+							if match {
+								matches := reExpected.FindStringSubmatch(resp.BroadcastResult.Log)
+								if len(matches) > 1 {
+									sequence, err = strconv.Atoi(matches[1])
+									if err != nil {
+										log.Fatalf("Failed to convert sequence to integer: %v", err)
+									}
+									fmt.Printf("we had an account sequence mismatch, adjusting to %d\n", sequence)
+								}
+							} else {
+								seqNum := sequence
+								sequence = seqNum + 1
+							}
+						}
+					}()
 				}
-			} else {
-				seqNum, err := strconv.Atoi(sequence)
-				if err != nil {
-					log.Fatalf("Failed to convert sequence to integer: %v", err)
+
+				wgBatch.Wait()
+				fmt.Println("successful transactions: ", successfulTxns)
+				fmt.Println("failed transactions: ", failedTxns)
+				totalTxns := successfulTxns + failedTxns
+				fmt.Println("Response code breakdown:")
+				for code, count := range responseCodes {
+					percentage := float64(count) / float64(totalTxns) * 100
+					fmt.Printf("Code %d: %d (%.2f%%)\n", code, count, percentage)
 				}
-				sequence = strconv.Itoa(seqNum + 1)
+
+				for {
+					if currentBlock(nodeURL) > lastBlock {
+						break
+					}
+				}
 			}
-		}
+		}(nodeURL)
+	}
 
-		for {
-			if currentBlock() > lastBlock {
-				break
-			}
-		}
-	}
-}
-
-func currentBlock() string {
-	resp, err := httpGet(fmt.Sprintf("%s/block", NODE_URL))
-	if err != nil {
-		log.Fatalf("Failed to get current block: %v", err)
-	}
-	var blockRes BlockResult
-	json.Unmarshal(resp, &blockRes)
-	return blockRes.Result.Block.Header.Height
-}
-
-func mempoolSize() string {
-	resp, err := httpGet(fmt.Sprintf("%s/numunconfirmed_txs", NODE_URL))
-	if err != nil {
-		log.Fatalf("Failed to get mempool size: %v", err)
-	}
-	var mempoolRes MempoolResult
-	json.Unmarshal(resp, &mempoolRes)
-	return mempoolRes.Result.NTxs
-}
-
-func blockSize(height string) []string {
-	resp, err := httpGet(fmt.Sprintf("%s/block?height=%s", NODE_URL, height))
-	if err != nil {
-		log.Fatalf("Failed to get block size: %v", err)
-	}
-	var blockRes BlockResult
-	json.Unmarshal(resp, &blockRes)
-	return blockRes.Result.Block.Data.Txs
-}
-
-func getInitialSequence(address string) string {
-	resp, err := httpGet("http://localhost:1317/cosmos/auth/v1beta1/accounts" + address)
-	if err != nil {
-		log.Fatalf("Failed to get initial sequence: %v", err)
-	}
-	var accountRes AccountResult
-	json.Unmarshal(resp, &accountRes)
-	fmt.Println(accountRes.Account.Sequence)
-	return "69"
-}
-
-func httpGet(url string) ([]byte, error) {
-	resp, err := http.Get(url) //nolint:gosec // not worth fixing
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return body, nil
+	wg.Wait()
 }
