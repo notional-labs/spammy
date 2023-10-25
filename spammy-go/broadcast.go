@@ -81,8 +81,8 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	}
 
 	gas := uint64(950000 + numBytes*10)
-	feeWithGas := int64(float64(gas) * 0.00269)
-	feecoin := sdk.NewCoin("uatom", sdk.NewInt(feeWithGas))
+	feeWithGas := int64(float64(gas) * 0.1)
+	feecoin := sdk.NewCoin("utia", sdk.NewInt(feeWithGas))
 	fee := sdk.NewCoins(feecoin)
 
 	txBuilder.SetGasLimit(gas)
@@ -108,8 +108,8 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	}
 
 	signerData := authsigning.SignerData{
-		ChainID:       "provider",
-		AccountNumber: 490,      // set actual account number
+		ChainID:       "mocha-4",
+		AccountNumber: 72559,    // set actual account number
 		Sequence:      sequence, // set actual sequence number
 	}
 

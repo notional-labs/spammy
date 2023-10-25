@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strconv"
 	"unsafe"
 
 	"github.com/BurntSushi/toml"
@@ -71,19 +70,19 @@ func getInitialSequence(address string) (int64, int64) {
 		return 0, 0
 	}
 
-	seqint, err := strconv.ParseInt(accountRes.Account.Sequence, 10, 64)
-	if err != nil {
-		log.Printf("Failed to convert sequence to int: %v", err)
-		return 0, 0
-	}
+	//	seqint, err := strconv.ParseInt(accountRes.Account.Sequence, 10, 64)
+	//	if err != nil {
+	//		log.Printf("Failed to convert sequence to int: %v", err)
+	//		return 0, 0
+	//	}
 
-	accnum, err := strconv.ParseInt(accountRes.Account.AccountNumber, 10, 64)
-	if err != nil {
-		log.Printf("Failed to convert account number to int: %v", err)
-		return 0, 0
-	}
+	//	accnum, err := strconv.ParseInt(accountRes.Account.AccountNumber, 10, 64)
+	//	if err != nil {
+	//		log.Printf("Failed to convert account number to int: %v", err)
+	//		return 0, 0
+	//	}
 
-	return seqint, accnum
+	return 0, 0
 }
 
 func getChainID(nodeURL string) (string, error) {
