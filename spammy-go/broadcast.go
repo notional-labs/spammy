@@ -80,7 +80,7 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		return nil, "", err
 	}
 
-	gas := uint64(900000 + numBytes*10)
+	gas := uint64(950000 + numBytes*10)
 	feeWithGas := int64(float64(gas) * 0.00269)
 	feecoin := sdk.NewCoin("uatom", sdk.NewInt(feeWithGas))
 	fee := sdk.NewCoins(feecoin)
