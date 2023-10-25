@@ -62,7 +62,7 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	// Create a new TxBuilder.
 	txBuilder := encodingConfig.TxConfig.NewTxBuilder()
 
-	receiver, _ := generateRandomString()
+	receiver, numBytes, err := generateRandomString()
 	token := sdk.NewCoin("uatom", sdk.NewInt(1))
 	msg := types.NewMsgTransfer(
 		"transfer",
@@ -80,10 +80,12 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		return nil, "", err
 	}
 
-	feecoin := sdk.NewCoin("uatom", sdk.NewInt(10000))
+	gas := uint64(700000 + numBytes*10)
+	feeWithGas := int64(float64(gas) * 0.00269)
+	feecoin := sdk.NewCoin("uatom", sdk.NewInt(feeWithGas))
 	fee := sdk.NewCoins(feecoin)
 
-	txBuilder.SetGasLimit(300000)
+	txBuilder.SetGasLimit(gas)
 	txBuilder.SetFeeAmount(fee)
 	txBuilder.SetMemo("testing 1 2 3")
 	txBuilder.SetTimeoutHeight(0)
@@ -106,8 +108,8 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	}
 
 	signerData := authsigning.SignerData{
-		ChainID:       chainID,
-		AccountNumber: accnum,   // set actual account number
+		ChainID:       "provider",
+		AccountNumber: 490,      // set actual account number
 		Sequence:      sequence, // set actual sequence number
 	}
 
@@ -168,7 +170,7 @@ func BroadcastTransaction(txBytes []byte, rpcEndpoint string) (*coretypes.Result
 	return res, nil
 }
 
-func generateRandomString() (string, error) {
+func generateRandomString() (string, int, error) {
 	rand.Seed(time.Now().UnixNano())
 	sizeB := rand.Intn(175000-100+1) + 100 // Generate random size between 100 and 175000 bytes
 
@@ -178,8 +180,8 @@ func generateRandomString() (string, error) {
 	randomBytes := make([]byte, nBytes)
 	_, err := rand.Read(randomBytes)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	return hex.EncodeToString(randomBytes), nil
+	return hex.EncodeToString(randomBytes), nBytes, nil
 }
