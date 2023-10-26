@@ -30,14 +30,14 @@ func main() {
 	address := acctaddress
 	globalSequence, globalAccNum := getInitialSequence(address)
 
+	successfulNodes := loadNodes()
+	fmt.Printf("Number of nodes: %d\n", len(successfulNodes))
+
 	// get correct chain-id
-	chainID, err := getChainID("https://rest.sentry-01.theta-testnet.polypore.xyz/")
+	chainID, err := getChainID(successfulNodes[1])
 	if err != nil {
 		log.Fatalf("Failed to get chain ID: %v", err)
 	}
-
-	successfulNodes := loadNodes()
-	fmt.Printf("Number of nodes: %d\n", len(successfulNodes))
 
 	// Compile the regex outside the loop
 	reMismatch := regexp.MustCompile("account sequence mismatch")
@@ -55,19 +55,19 @@ func main() {
 			accNum := globalAccNum
 
 			currentMempoolSize := mempoolSize(nodeURL)
-			fmt.Printf("Node: %s, Mempool size: %s bytes, Number of transactions: %s\n", nodeURL, currentMempoolSize.TotalBytes, currentMempoolSize.NTxs)
+			fmt.Printf("Node: %s, Mempool size: %d bytes, Number of transactions: %d\n", nodeURL, currentMempoolSize.TotalBytes, currentMempoolSize.Count)
 
-			startBlock := currentBlock(nodeURL)
-			fmt.Printf("Script starting at block height: %s\n", startBlock)
+			startBlock := getStatus(nodeURL)
+			fmt.Printf("Script starting at block height: %d\n", startBlock)
 
 			for {
 				lastBlock := startBlock
-				lastBlockSize := blockSize(lastBlock, nodeURL)
+				lastBlockSize := blockSize(lastBlock.SyncInfo.LatestBlockHeight, nodeURL)
 				currentMempoolSize = mempoolSize(nodeURL)
 
-				fmt.Println("Last block height: ", lastBlock)
+				fmt.Println("Last block height: ", lastBlock.SyncInfo.LatestBlockHeight)
 				fmt.Println("Last Block Size: ", lastBlockSize)
-				fmt.Println(nodeURL, "Current mempool txns: "+currentMempoolSize.NTxs+" transactions")
+				fmt.Println(nodeURL, "Current mempool txns: ", currentMempoolSize.Count, " transactions")
 				fmt.Println(nodeURL, "mempool byte size:", currentMempoolSize.TotalBytes)
 
 				for i := 0; i < BatchSize; i++ {
@@ -114,7 +114,8 @@ func main() {
 				mu.Unlock()
 
 				for {
-					if currentBlock(nodeURL) > lastBlock {
+					status := getStatus(nodeURL)
+					if status.SyncInfo.LatestBlockHeight > lastBlock.SyncInfo.LatestBlockHeight {
 						break
 					}
 				}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,39 +11,39 @@ import (
 	"unsafe"
 
 	"github.com/BurntSushi/toml"
+	cometrpc "github.com/cometbft/cometbft/rpc/client/http"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 )
 
-func currentBlock(nodeURL string) string {
-	resp, err := httpGet(fmt.Sprintf("%s/block", nodeURL))
+func getStatus(nodeURL string) *coretypes.ResultStatus {
+	cmtCli, err := cometrpc.New(nodeURL, "/websocket")
 	if err != nil {
-		log.Printf("Failed to get current block: %v", err)
+		log.Fatal(err) //nolint:gocritic
 	}
-	var blockRes BlockResult
-	err = json.Unmarshal(resp, &blockRes)
-	if err != nil {
-		log.Printf("Failed to unmarshal block result: %v", err)
-	}
-	return blockRes.Result.Block.Header.Height
+
+	ctx := context.Background()
+
+	status, err := cmtCli.Status(ctx)
+
+	return status
 }
 
-func mempoolSize(nodeURL string) Result {
-	resp, err := httpGet(fmt.Sprintf("%s/num_unconfirmed_txs", nodeURL))
+func mempoolSize(nodeURL string) *coretypes.ResultUnconfirmedTxs {
+
+	cmtCli, err := cometrpc.New(nodeURL, "/websocket")
 	if err != nil {
-		log.Printf("Failed to get mempool size: %v", err)
-		return Result{} // Return an empty Result on error
+		log.Fatal(err) //nolint:gocritic
+	}
+	ctx := context.Background()
+	unconfirmed, err := cmtCli.NumUnconfirmedTxs(ctx)
+	if err != nil {
+		panic(err)
 	}
 
-	var mempoolRes MempoolResult
-	err = json.Unmarshal(resp, &mempoolRes)
-	if err != nil {
-		log.Printf("Failed to unmarshal mempool result: %v", err)
-		return Result{} // Return an empty Result on error
-	}
-
-	return mempoolRes.Result
+	return unconfirmed
 }
 
-func blockSize(height, nodeURL string) uintptr {
+func blockSize(height int64, nodeURL string) uintptr {
 	resp, err := httpGet(fmt.Sprintf("%s/block?height=%s", nodeURL, height))
 	if err != nil {
 		log.Printf("Failed to get block size: %v", err)

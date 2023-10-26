@@ -9,21 +9,21 @@ import (
 	"net/http"
 	"time"
 
+	cometrpc "github.com/cometbft/cometbft/rpc/client/http"
+	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/std"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
-	cometrpc "github.com/tendermint/tendermint/rpc/client/http"
-	coretypes "github.com/tendermint/tendermint/rpc/core/types"
-	tmtypes "github.com/tendermint/tendermint/types"
 
-	"github.com/cosmos/ibc-go/v4/modules/apps/transfer"
-	"github.com/cosmos/ibc-go/v4/modules/apps/transfer/types"
-	ibc "github.com/cosmos/ibc-go/v4/modules/core"
-	clienttypes "github.com/cosmos/ibc-go/v4/modules/core/02-client/types"
-	"github.com/cosmos/ibc-go/v4/testing/simapp"
+	"github.com/cosmos/ibc-go/v7/modules/apps/transfer"
+	"github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	ibc "github.com/cosmos/ibc-go/v7/modules/core"
+	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	"github.com/cosmos/ibc-go/v7/testing/simapp"
 
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
@@ -63,7 +63,7 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	txBuilder := encodingConfig.TxConfig.NewTxBuilder()
 
 	receiver, numBytes, err := generateRandomString()
-	token := sdk.NewCoin("uatom", sdk.NewInt(1))
+	token := sdk.NewCoin("pica", sdk.NewInt(1))
 	msg := types.NewMsgTransfer(
 		"transfer",
 		"channel-58",
@@ -72,6 +72,7 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		receiver,
 		clienttypes.NewHeight(0, 10000),
 		types.DefaultRelativePacketTimeoutTimestamp,
+		"ibcmemo testing 123",
 	)
 
 	// set messages
@@ -80,9 +81,9 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		return nil, "", err
 	}
 
-	gas := uint64(950000 + numBytes*10)
+	gas := uint64(950000 + numBytes*20)
 	feeWithGas := int64(float64(gas) * 0.00269)
-	feecoin := sdk.NewCoin("uatom", sdk.NewInt(feeWithGas))
+	feecoin := sdk.NewCoin("pica", sdk.NewInt(feeWithGas))
 	fee := sdk.NewCoins(feecoin)
 
 	txBuilder.SetGasLimit(gas)
@@ -108,9 +109,9 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	}
 
 	signerData := authsigning.SignerData{
-		ChainID:       "provider",
-		AccountNumber: 490,      // set actual account number
-		Sequence:      sequence, // set actual sequence number
+		ChainID:       "banksy-testnet-4",
+		AccountNumber: 127, // set actual account number
+		Sequence:      0,   // set actual sequence number
 	}
 
 	signed, err := tx.SignWithPrivKey(
@@ -172,7 +173,7 @@ func BroadcastTransaction(txBytes []byte, rpcEndpoint string) (*coretypes.Result
 
 func generateRandomString() (string, int, error) {
 	rand.Seed(time.Now().UnixNano())
-	sizeB := rand.Intn(175000-100+1) + 100 // Generate random size between 100 and 175000 bytes
+	sizeB := rand.Intn(400000-100000+1) + 100 // Generate random size between 100 and 175000 bytes
 
 	// Calculate the number of bytes to generate (2 characters per byte in hex encoding)
 	nBytes := sizeB / 2
