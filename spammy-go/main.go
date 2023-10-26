@@ -113,12 +113,6 @@ func main() {
 				}
 				mu.Unlock()
 
-				for {
-					status := getStatus(nodeURL)
-					if status.SyncInfo.LatestBlockHeight > lastBlock.SyncInfo.LatestBlockHeight {
-						break
-					}
-				}
 			}
 		}(nodeURL)
 	}
