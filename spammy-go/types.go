@@ -117,11 +117,3 @@ type Fee struct {
 type Config struct {
 	SuccessfulNodes []string `toml:"successfulNodes"`
 }
-
-type NodeStatusResponse struct {
-	Result struct {
-		NodeInfo struct {
-			Network string `json:"network"`
-		} `json:"node_info"`
-	} `json:"result"`
-}

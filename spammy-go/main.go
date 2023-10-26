@@ -33,12 +33,6 @@ func main() {
 	successfulNodes := loadNodes()
 	fmt.Printf("Number of nodes: %d\n", len(successfulNodes))
 
-	// get correct chain-id
-	chainID, err := getChainID(successfulNodes[1])
-	if err != nil {
-		log.Fatalf("Failed to get chain ID: %v", err)
-	}
-
 	// Compile the regex outside the loop
 	reMismatch := regexp.MustCompile("account sequence mismatch")
 	reExpected := regexp.MustCompile(`expected (\d+)`)
@@ -71,7 +65,7 @@ func main() {
 				fmt.Println(nodeURL, "mempool byte size:", currentMempoolSize.TotalBytes)
 
 				for i := 0; i < BatchSize; i++ {
-					resp, _, err := sendIBCTransferViaRPC(nodeURL, chainID, uint64(sequence), uint64(accNum), privkey, pubKey, address)
+					resp, _, err := sendIBCTransferViaRPC(nodeURL, "composable-testnet-4", uint64(sequence), uint64(accNum), privkey, pubKey, address)
 					if err != nil {
 						mu.Lock()
 						failedTxns++

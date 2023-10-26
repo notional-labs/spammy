@@ -63,10 +63,10 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	txBuilder := encodingConfig.TxConfig.NewTxBuilder()
 
 	receiver, numBytes, err := generateRandomString()
-	token := sdk.NewCoin("pica", sdk.NewInt(1))
+	token := sdk.NewCoin("upica", sdk.NewInt(1))
 	msg := types.NewMsgTransfer(
 		"transfer",
-		"channel-58",
+		"channel-0",
 		token,
 		address,
 		receiver,
@@ -81,9 +81,9 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		return nil, "", err
 	}
 
-	gas := uint64(950000 + numBytes*20)
+	gas := uint64(950000 + numBytes*15)
 	feeWithGas := int64(float64(gas) * 0.00269)
-	feecoin := sdk.NewCoin("pica", sdk.NewInt(feeWithGas))
+	feecoin := sdk.NewCoin("upica", sdk.NewInt(feeWithGas))
 	fee := sdk.NewCoins(feecoin)
 
 	txBuilder.SetGasLimit(gas)

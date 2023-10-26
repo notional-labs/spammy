@@ -87,23 +87,6 @@ func getInitialSequence(address string) (int64, int64) {
 	return seqint, accnum
 }
 
-func getChainID(nodeURL string) (string, error) {
-	resp, err := httpGet(fmt.Sprintf("%s/status", nodeURL))
-	if err != nil {
-		log.Printf("Failed to get node status: %v", err)
-		return "", err
-	}
-
-	var statusRes NodeStatusResponse
-	err = json.Unmarshal(resp, &statusRes)
-	if err != nil {
-		log.Printf("Failed to unmarshal node status result: %v", err)
-		return "", err
-	}
-
-	return statusRes.Result.NodeInfo.Network, nil
-}
-
 func httpGet(url string) ([]byte, error) {
 	resp, err := client.Get(url) //nolint:gosec // this is what it thinks it is
 	if err != nil {
