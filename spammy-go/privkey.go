@@ -33,7 +33,7 @@ func getPrivKey(mnemonic []byte) (cryptotypes.PrivKey, cryptotypes.PubKey, strin
 	// }
 
 	addressbytes := sdk.AccAddress(pubKey.Address().Bytes())
-	address, err := sdk.Bech32ifyAddressBytes("layer", addressbytes)
+	address, err := sdk.Bech32ifyAddressBytes("dydx", addressbytes)
 	if err != nil {
 		panic(err)
 	}

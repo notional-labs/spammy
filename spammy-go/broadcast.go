@@ -47,7 +47,7 @@ func init() {
 	types.RegisterInterfaces(cdc.InterfaceRegistry())
 }
 
-func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum uint64, privKey cryptotypes.PrivKey, pubKey cryptotypes.PubKey, address string) (response *coretypes.ResultBroadcastTx, txbody string, err error) {
+func sendIBCTransferViaRPC(status *coretypes.ResultStatus, successfulNodes []string, rpcEndpoint string, sequence uint64, privKey cryptotypes.PrivKey, pubKey cryptotypes.PubKey, address string) (response []*coretypes.ResultBroadcastTx, txbody string, err error) {
 	encodingConfig := simapp.MakeTestEncodingConfig()
 	encodingConfig.Marshaler = cdc
 
@@ -62,17 +62,27 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	// Create a new TxBuilder.
 	txBuilder := encodingConfig.TxConfig.NewTxBuilder()
 
+	cmtCli, err := cometrpc.New(rpcEndpoint, "/websocket")
+	if err != nil {
+		log.Fatal(err) //nolint:gocritic
+	}
+	ctx := context.Background()
+	netinfo, err := cmtCli.NetInfo(ctx)
+
+	// moniker, height, number of peers
+	nodeinfo := fmt.Sprint("Moniker: ", status.NodeInfo.Moniker, " Height: ", status.SyncInfo.LatestBlockHeight, " indexing? ", status.TxIndexEnabled(), " Peers: ", netinfo.NPeers)
+
 	receiver, numBytes, err := generateRandomString()
-	token := sdk.NewCoin("upica", sdk.NewInt(1))
+	token := sdk.NewCoin("adv4tnt", sdk.NewInt(1))
 	msg := types.NewMsgTransfer(
 		"transfer",
 		"channel-0",
 		token,
 		address,
 		receiver,
-		clienttypes.NewHeight(0, 10000),
-		types.DefaultRelativePacketTimeoutTimestamp,
-		"ibcmemo testing 123",
+		clienttypes.NewHeight(1, 3812921),
+		uint64(0),
+		nodeinfo,
 	)
 
 	// set messages
@@ -81,14 +91,14 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		return nil, "", err
 	}
 
-	gas := uint64(950000 + numBytes*15)
-	feeWithGas := int64(float64(gas) * 0.00269)
-	feecoin := sdk.NewCoin("upica", sdk.NewInt(feeWithGas))
+	gas := uint64(950000 + numBytes*17)
+	//	feeWithGas := int64(float64(gas) * 0.00269)
+	feecoin := sdk.NewCoin("adv4tnt", sdk.NewInt(39052500000000000))
 	fee := sdk.NewCoins(feecoin)
 
 	txBuilder.SetGasLimit(gas)
 	txBuilder.SetFeeAmount(fee)
-	txBuilder.SetMemo("testing 1 2 3")
+	txBuilder.SetMemo(nodeinfo)
 	txBuilder.SetTimeoutHeight(0)
 
 	// First round: we gather all the signer infos. We use the "set empty
@@ -109,9 +119,9 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	}
 
 	signerData := authsigning.SignerData{
-		ChainID:       "banksy-testnet-4",
-		AccountNumber: 127, // set actual account number
-		Sequence:      0,   // set actual sequence number
+		ChainID:       "dydx-testnet-4",
+		AccountNumber: 4130, // set actual account number
+		Sequence:      4575, // set actual sequence number
 	}
 
 	signed, err := tx.SignWithPrivKey(
@@ -138,7 +148,7 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 		return nil, "", err
 	}
 
-	resp, err := BroadcastTransaction(txJSONBytes, rpcEndpoint)
+	resp, err := BroadcastTransaction(txJSONBytes, successfulNodes)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
@@ -146,37 +156,38 @@ func sendIBCTransferViaRPC(rpcEndpoint string, chainID string, sequence, accnum 
 	return resp, string(txJSONBytes), nil
 }
 
-func BroadcastTransaction(txBytes []byte, rpcEndpoint string) (*coretypes.ResultBroadcastTx, error) {
-	cmtCli, err := cometrpc.New(rpcEndpoint, "/websocket")
-	if err != nil {
-		log.Fatal(err) //nolint:gocritic
+func BroadcastTransaction(txBytes []byte, successfulNodes []string) ([]*coretypes.ResultBroadcastTx, error) {
+	var results []*coretypes.ResultBroadcastTx
+
+	for _, rpcEndpoint := range successfulNodes {
+		cmtCli, err := cometrpc.New(rpcEndpoint, "/websocket")
+		if err != nil {
+			log.Fatal(err) //nolint:gocritic
+		}
+
+		t := tmtypes.Tx(txBytes)
+
+		ctx := context.Background()
+		res, err := cmtCli.BroadcastTxSync(ctx, t)
+		if err != nil {
+			return nil, err
+		}
+
+		//	fmt.Println("log: ", res.Log)
+		//	fmt.Println("code: ", res.Code)
+
+		results = append(results, res)
 	}
 
-	t := tmtypes.Tx(txBytes)
-
-	ctx := context.Background()
-	res, err := cmtCli.BroadcastTxSync(ctx, t)
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("error at broadcast")
-		return nil, err
-	}
-
-	fmt.Println("other: ", res.Data)
-	fmt.Println("log: ", res.Log)
-	fmt.Println("code: ", res.Code)
-	fmt.Println("code: ", res.Codespace)
-	fmt.Println("txid: ", res.Hash)
-
-	return res, nil
+	return results, nil
 }
 
 func generateRandomString() (string, int, error) {
 	rand.Seed(time.Now().UnixNano())
-	sizeB := rand.Intn(400000-100000+1) + 100 // Generate random size between 100 and 175000 bytes
+	//	sizeB := rand.Intn(600000-100000+1) + 100 // Generate random size between 100 and 175000 bytes
 
 	// Calculate the number of bytes to generate (2 characters per byte in hex encoding)
-	nBytes := sizeB / 2
+	nBytes := 10000 / 2
 
 	randomBytes := make([]byte, nBytes)
 	_, err := rand.Read(randomBytes)

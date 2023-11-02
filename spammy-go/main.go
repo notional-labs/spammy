@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BatchSize = 100
+	BatchSize = 1000
 )
 
 func main() {
@@ -29,10 +29,9 @@ func main() {
 
 	// get initial sequence
 	address := acctaddress
-	globalSequence, globalAccNum := getInitialSequence(address)
 
-	successfulNodes := loadNodes()
-	fmt.Printf("Number of nodes: %d\n", len(successfulNodes))
+	SuccessfulNodes := loadNodes()
+	fmt.Printf("Number of nodes: %d\n", len(SuccessfulNodes))
 
 	// Compile the regex outside the loop
 	reMismatch := regexp.MustCompile("account sequence mismatch")
@@ -41,14 +40,13 @@ func main() {
 	var wg sync.WaitGroup
 
 	// Use only one node
-	nodeURL := successfulNodes[0]
+	nodeURL := SuccessfulNodes[7]
 	wg.Add(1)
 
 	go func(nodeURL string) {
 		defer wg.Done()
 
-		sequence := globalSequence
-		accNum := globalAccNum
+		var sequence uint64
 
 		// Create a ticker for rate limiting
 		ticker := time.NewTicker(time.Second / BatchSize)
@@ -59,12 +57,14 @@ func main() {
 			fmt.Printf("Node: %s, Mempool size: %d bytes, Number of transactions: %d\n", nodeURL, currentMempoolSize.TotalBytes, currentMempoolSize.Count)
 
 			startBlock := getStatus(nodeURL)
-			fmt.Printf("Script starting at block height: %d\n", startBlock)
+			fmt.Printf("Script starting at block height: %d\n", startBlock.SyncInfo.LatestBlockHeight)
 
 			for i := 0; i < BatchSize; i++ {
 				<-ticker.C // Wait for the ticker
 
-				resp, _, err := sendIBCTransferViaRPC(nodeURL, "composable-testnet-4", uint64(sequence), uint64(accNum), privkey, pubKey, address)
+				status := getStatus(nodeURL)
+
+				resp, _, err := sendIBCTransferViaRPC(status, SuccessfulNodes, nodeURL, sequence, privkey, pubKey, address)
 				if err != nil {
 					mu.Lock()
 					failedTxns++
@@ -76,21 +76,23 @@ func main() {
 					if resp != nil {
 						// Increment the count for this response code
 						mu.Lock()
-						responseCodes[resp.Code]++
+						responseCodes[resp[1].Code]++
 						mu.Unlock()
 					}
 
-					match := reMismatch.MatchString(resp.Log)
+					match := reMismatch.MatchString(resp[7].Log)
 					if match {
-						matches := reExpected.FindStringSubmatch(resp.Log)
+						matches := reExpected.FindStringSubmatch(resp[7].Log)
 						if len(matches) > 1 {
 							newSequence, err := strconv.Atoi(matches[1])
 							if err != nil {
 								log.Fatalf("Failed to convert sequence to integer: %v", err)
 							}
-							sequence = int64(newSequence)
+							sequence = uint64(newSequence)
 							fmt.Printf("we had an account sequence mismatch for node %s, adjusting to %d\n", nodeURL, newSequence)
 						}
+					} else {
+						sequence++
 					}
 				}
 			}
@@ -110,22 +112,7 @@ func main() {
 
 	// Monitor mempool size on all nodes
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			var totalMempoolSize int
-			for _, nodeURL := range successfulNodes {
-				currentMempoolSize := mempoolSize(nodeURL)
-				totalMempoolSize += currentMempoolSize.TotalBytes
-			}
-			averageMempoolSize := totalMempoolSize / len(successfulNodes)
-			fmt.Printf("Average global mempool size: %d bytes\n", averageMempoolSize)
-		}
-	}()
+	go monitorMempool(SuccessfulNodes, &wg)
 
 	wg.Wait()
 }
